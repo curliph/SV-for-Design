@@ -5,16 +5,13 @@
 //
 ////////////////////////////////////////////////////////////////////////////////
 module pwm #(parameter CTR_LEN = 6) (
-    input clk,
-    input reset,
-    input [CTR_LEN-1:0] compare,
-    output pwm
+    input  logic clk,
+    input  logic reset,
+    input  logic [CTR_LEN-1:0] compare,
+    output logic pwm = 0
 );
 
-reg pwm_q;
-reg [CTR_LEN-1:0] ctr_q = {CTR_LEN{1'b0}};
-
-assign pwm = pwm_q;
+logic [CTR_LEN-1:0] ctr_q = {CTR_LEN{1'b0}};
 
 always_ff @( posedge clk ) begin
     if ( reset ) begin
@@ -26,9 +23,9 @@ end
 
 always_ff @( posedge clk ) begin
     if ( ctr_q < compare ) begin
-        pwm_q <= 1'b1;
+        pwm <= 1'b1;
     end else begin
-        pwm_q <= 1'b0;
+        pwm <= 1'b0;
     end
 end
 
