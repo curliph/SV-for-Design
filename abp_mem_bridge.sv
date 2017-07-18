@@ -1,5 +1,5 @@
 // AMBA3-APB Master to Slave bridge
-module #(
+module abp_mem_bridge #(
   parameter DATA_WIDTH = 32,
   parameter ADDR_WIDTH = 32,
   parameter PSEL_WIDTH = 1
