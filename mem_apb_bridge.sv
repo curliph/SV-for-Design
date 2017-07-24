@@ -35,8 +35,8 @@ module mem_apb_bridge #(
   logic transfer_read;
   logic transfer_write;
   
-  assign transfer_read  = read  && channel_select;
-  assign transfer_write = write && channel_select;
+  assign transfer_read  = |(read  & channel_select);
+  assign transfer_write = |(write & channel_select);
     
   // PADDR generation logic
   always_ff @(posedge PCLK) begin
