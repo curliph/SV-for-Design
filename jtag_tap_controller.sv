@@ -16,6 +16,7 @@ module jtag_tap_controller #(
   
   assign clk = TCLK;
   assign reset = TRST;
+  assign TDO = TDI;
   
   typedef enum {
     TEST_RESET,TEST_IDLE,
