@@ -1,6 +1,7 @@
 module byte_write_sdp_ram #(
+  parameter ADDR_DEPTH = 32
   parameter DATA_WIDTH = 16,
-  parameter ADDR_WIDTH = 9
+  parameter ADDR_WIDTH = 32
 ) (
   input  logic                    wr_clk,
   input  logic                    wr_enable,
@@ -13,36 +14,22 @@ module byte_write_sdp_ram #(
 );
   
   localparam ADDR_LSB = $clog2(DATA_WIDTH/8);
-  logic [7:0][DATA_WIDTH/8-1:0] mem [2**(ADDR_WIDTH-ADDR_LSB)];
+  localparam ADDR_MSB = $clog2(ADDR_DEPTH)+ADDR_LSB;
+  logic [7:0][DATA_WIDTH/8-1:0] mem [ADDR_DEPTH];
   
-  logic                    wr_enable_r;
-  logic [ADDR_WIDTH-1:0]   wr_address_r;
-  logic [DATA_WIDTH-1:0]   wr_data_r;
-  logic [DATA_WIDTH-1:0]   rd_data_r;
-  logic [DATA_WIDTH/8-1:0] wr_strb_r;
-  
+  genvar i;
+  generate for (i=0; i<DATA_WIDTH/8; i++) begin : write_byte
   always_ff @(posedge wr_clk) begin
-    wr_enable_r <= wr_enable;
-    wr_address_r <= wr_address;
-    wr_data_r <= wr_data;
-    wr_strb_r <= wr_strb;
-    rd_data_r <= mem[wr_address[ADDR_WIDTH-1:ADDR_LSB]];
-  end
-  integer i;
-  always_ff @(posedge wr_clk) begin
-    if (wr_enable_r) begin
-      for (i=0; i<DATA_WIDTH/8; i++) begin
-        if (wr_strb_r[i]) begin
-          mem[wr_address_r[ADDR_WIDTH-1:ADDR_LSB]][i] <= wr_data_r[8*i+:8];
-        end else begin
-          mem[wr_address_r[ADDR_WIDTH-1:ADDR_LSB]][i] <= rd_data_r[8*i+:8];
+    if (wr_enable) begin
+        if (wr_strb[i]) begin
+          mem[wr_address[ADDR_MSB-1:ADDR_LSB]][i] <= wr_data[8*i+:8];
         end
-      end
     end
   end
+  end endgenerate
   
   always_ff @(posedge rd_clk) begin
-    rd_data <= mem[rd_address[ADDR_WIDTH-1:ADDR_LSB]];
+    rd_data <= mem[rd_address[ADDR_MSB-1:ADDR_LSB]];
   end
   
 endmodule
