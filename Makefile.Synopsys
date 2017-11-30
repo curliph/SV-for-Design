@@ -1,0 +1,261 @@
+SHELL := /bin/bash
+export ROOT_DIR=${PWD}
+
+EXIT_SWITCH := exit
+RUN_DIR := $(ROOT_DIR)/par
+TOP_MODULE := design_top
+DATABASE_DIR := $(RUN_DIR)/bd
+WORK_DIR := $(RUN_DIR)/work
+REPORT_DIR := $(RUN_DIR)/reports
+SOURCE_DIR := $(ROOT_DIR)/rtl
+LIB_DIR := $(ROOT_DIR)/libs
+
+DC_SETUP_TCL := $(RUN_DIR)/dc_setup.tcl
+DC_REPORTS_TCL := $(RUN_DIR)/dc_reports.tcl
+DC_CTL_TCL := $(RUN_DIR)/dc_constrain.tcl
+DC_PRE_DFT_TCL := $(RUN_DIR)/dc_pre_dft.tcl
+DC_RUN_DFT_TCL := $(RUN_DIR)/dc_run_dft.tcl
+DC_RUN_TCL := $(RUN_DIR)/dc_compile.tcl
+DC_RUN_LOG := $(RUN_DIR)/dc_compile.log
+DC_PRE_DFT_LOG := $(RUN_DIR)/dc_pre_dft.log
+DC_RUN_DFT_LOG := $(RUN_DIR)/dc_run_dft.log
+
+FILE_LIST := $(ROOT_DIR)/Libmap
+FILE_LIST_PL := $(RUN_DIR)/file_list.pl
+FILE_LIST_TCL := $(RUN_DIR)/file_list.tcl
+
+LINK_LIBRARY := * core_typ.db
+TARGET_LIBRARY := core_typ.db
+SYMBOL_LIBRARY := core.sdb
+
+#Create user defined variables
+CLK_PORT := clk
+CLK_PERIOD := 4.00
+CLK_SKEW := 0.14
+WC_OP_CONDS := typ_0_1.98
+WIRELOAD_MODEL := 10KGATES
+DRIVE_CELL := buf1a6
+DRIVE_PIN := {Y}
+MAX_OUTPUT_LOAD := [load_of ssc_core/buf1a2/A]
+INPUT_DELAY := 2.0
+OUTPUT_DELAY := 0.5
+MAX_AREA := 380000
+
+DFT_CLK_PERIOD := 100
+DFT_CLK_PORT := TCLK
+DFT_RST_PORT := TRST
+DFT_TM_PORT := TMS
+DFT_DI_PORT := TDI
+DFT_DO_PORT := TDO
+SCAN_CHAIN_COUNT := 1
+
+VCDPLUSON := 1
+ifeq ($(VCDPLUSON),1)
+  DUMP_OPTION = vcdpluson
+  DUMP_FILE = vcdplus.vpd
+else
+  DUMP_OPTION = dumvars
+  DUMP_FILE = verilog.dump
+endif
+
+run: clean syn
+
+src:
+  @mkdir $(RUN_DIR);
+  @mkdir $(DATABASE_DIR);
+  @mkdir $(WORK_DIR);
+  @mkdir $(REPORT_DIR);
+  
+$(FILE_LIST_PL): $(FILE_LIST)
+  @echo "#! /usr/bin/perl" > $@
+  @echo "use warnings;" >> $@
+  @echo "use strict;" >> $@
+  @echo "my \$$HFILE = \"$(FILE_LIST)\";" >> $@
+  @echo "my \$$CFILE = \"$(FILE_LIST_TCL)\";" >> $@
+  @echo "open(HFILEptr,\$$HFILE) || die \"Can't open file: \$$HFILE\\n\";" >> $@
+  @echo "open(CFILEptr,\">\$$CFILE\") || die \"Can't open file: \$$CFILE\\n\";" >> $@
+  @echo "while(<HFILEptr>) {" >> $@
+  @echo " \$$_ =~ s/^\s+\$$//g;" >> $@
+  @echo " chomp;" >> $@
+  @echo " if (/^.*#(.*)/) {" >> $@
+  @echo "   print(CFILEptr \"## \$$_\\n\");" >> $@
+  @echo " }" >> $@
+  @echo " elsif (/^.*.(sv|svg|svh)*/) {" >> $@
+  @echo "   print(CFILEptr \"analyze -f sverilog \$$_\\n\");" >> $@
+  @echo " }" >> $@
+  @echo " elsif (/^.*.(v|vg|vh)*/) {" >> $@
+  @echo "   print(CFILEptr \"analyze -f verilog \$$_\\n\");" >> $@
+  @echo " }" >> $@
+  @echo " else (/^.*.(v|svg|svh)*/) {" >> $@
+  @echo "   print(CFILEptr \"## \$$_\\n\");" >> $@
+  @echo " }" >> $@
+  @echo "}" >> $@
+  @echo "close(HFILEptr);" >> $@
+  @echo "close(CFILEptr);" >> $@
+  
+$(DC_SETUP_TCL):
+  @echo "set_host_options -max_cores 16" > $@
+  @echo "set cache_read \"\"" >> $@
+  @echo "set cache_write \"\"" >> $@
+  @echo "set search_path \"\$$search_path $(LIB_DIR) $(DATABASE_DIR) ./\"" >> $@
+  @echo "set link_library \"$(LINK_LIBRARY)\"" >> $@
+  @echo "set target_library \"$(TARGET_LIBRARY)\"" >> $@
+  @echo "set symbol_library \"$(SYMBOL_LIBRARY)\"" >> $@
+  @echo "define_design_lib WORK -path \"$(WORK_DIR)\"" >> $@
+
+$(DC_REPORTS_TCL):
+  @echo "report_timing -transition_time -nets -attributes -nosplit > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}_timming.rpt" > $@
+  @echo "report_area -nosplit -hierarchy > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}_area.rpt" >> $@
+  @echo "report_power -nosplit -hierarchy > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}_power.rpt" >> $@
+  @echo "report_reference -nosplit -hierarchy > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}_reference.rpt" >> $@
+  @echo "report_resources -nosplit -hierarchy > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}_resources.rpt" >> $@
+  @echo "report_constraints > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}_constraints.rpt" >> $@
+  @echo "report_design > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}_design.rpt" >> $@
+  @echo "report_hierarchy > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}_hierarchy.rpt" >> $@
+  @echo "report_clock > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}_clock.rpt" >> $@
+  @echo "report_clock_gating > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}_clock_gating
+  @echo "write_script -format dctcl -output > $(REPORT_DIR)/$(TOPMODULE)_\$${report_type}.tcl" >> $@.rpt" >> $@
+  
+$(DC_RUN_TCL): $(DC_SETUP_TCL) $(DC_REPORTS_TCL) $(DC_CTL_TCL) $(FILE_LIST_PL)
+  @echo "source $(DC_SETUP_TCL)" > $@
+  # Transilate HDL to intermediate format
+  @echo "source $(FILE_LIST_TCL)" >> $@
+  # Build generic technology datbase
+  @echo "elaborate $(TOPMODULE)" >> $@
+  # designate the design to synthesize
+  @echo "current_design $(TOPMODULE)" >> $@
+  @echo "uniquify" >> $@
+  @echo "source $(DC_CTL_TCL)" >> $@
+  @echo "check_design" >> $@
+  @echo "write -format ddc -heirarchy -output $(DATABASE_DIR)/$(TOPMODULE)_gtech.ddc" >> $@
+  @echo "write -format verilog -heirarchy -output $(DATABASE_DIR)/$(TOPMODULE)_gtech.v" >> $@
+  # compile the design
+  @echo "compile" >> $@
+  @echo "write -format ddc -heirarchy -output $(DATABASE_DIR)/$(TOPMODULE)_mapped.ddc" >> $@
+  @echo "write -format verilog -heirarchy -output $(DATABASE_DIR)/$(TOPMODULE)_mapped.v" >> $@
+  @echo "write_sdf $(RUN_DIR)/$(TOPMODULE)_mapped.sdf" >> $@
+  @echo "write_sdc -nosplit $(RUN_DIR)/$(TOPMODULE)_mapped.sdc" >> $@
+  @echo "write_milkyway -overwrite -output \"$(RUN_DIR)/$(TOPMODULE)_mapped_DCT\"" >> $@
+  # generate reports
+  @echo "set report_type mapped" >> $@
+  @echo "source $(DC_REPORTS_TCL)" >> $@
+  # ultra compile
+  @echo "compile_ultra -gate_clock -no_autoungroup" >> $@
+  @echo "write -format ddc -heirarchy -output $(DATABASE_DIR)/$(TOPMODULE)_ultra_mapped.ddc" >> $@
+  @echo "write -format verilog -heirarchy -output $(DATABASE_DIR)/$(TOPMODULE)_ultra_mapped.v" >> $@
+  @echo "write_sdf $(RUN_DIR)/$(TOPMODULE)_ultra_mapped.sdf" >> $@
+  @echo "write_sdc -nosplit $(RUN_DIR)/$(TOPMODULE)_ultra_mapped.sdc" >> $@
+  @echo "write_milkyway -overwrite -output \"$(RUN_DIR)/$(TOPMODULE)_ultra_mapped_DCT\"" >> $@  @echo "set report_type mapped" >> $@
+  # generate reports
+  @echo "set report_type ultra_mapped" >> $@
+  @echo "source $(DC_REPORTS_TCL)" >> $@
+
+$(DC_PRE_DFT_TCL): $(DC_SETUP_TCL) $(DC_REPORTS_TCL)
+  @echo "source $(DC_SETUP_TCL)" >> $@
+  @echo "read_file -format dc $(DATABASE_DIR)/$(TOPMODULE)_mapped.ddc" >> $@
+  @echo "current_design $(TOPMODULE)" >> $@
+  @echo "set_scan_configuration -style multiplexed_flip_flop" >> $@
+  # set DFT signals
+  @echo "set test_default_period $(DFT_CLK_PERIOD)" >> $@
+  @echo "set_dft_signal -view existing_dft -type ScanClock -timing {45 55} -port $(DFT_CLK_PORT)" >> $@
+  @echo "set_dft_signal -view existing_dft -type Constant -active_state 1 -port $(DFT_TM_PORT)" >> $@
+  @echo "set_dft_signal -view existing_dft -type Reset -active_state 0 -port $(DFT_RST_PORT)" >> $@
+  # create test protocol
+  @echo "create_test_protocol" >> $@
+  # Pre-DFT : Check scan design rule defore scan chain synthesis
+  @echo "dft_drc" >> $@
+  @echo "compile_ultra -gate_clock -scan -no_autoungroup" >> $@
+  # write out the test protocol and scan-ready design
+  @echo "write_test_protocol -output $(DATABASE_DIR)/$(TOPMODULE)_ultra_scan.spf" >> $@
+  @echo "write -format ddc -heirarchy -output $(DATABASE_DIR)/$(TOPMODULE)_ultra_scan_mapped.ddc" >> $@
+  @echo "write -format verilog -heirarchy -output $(DATABASE_DIR)/$(TOPMODULE)_ultra_scan_mapped.v" >> $@
+  @echo "write_sdf $(RUN_DIR)/$(TOPMODULE)_ultra_scan_mapped.sdf" >> $@
+  @echo "write_sdc -nosplit $(RUN_DIR)/$(TOPMODULE)_ultra_scan_mapped.sdc" >> $@
+  # generate reports
+  @echo "set report_type ultra_scan_mapped" >> $@
+  @echo "source $(DC_REPORTS_TCL)" >> $@
+
+$(DC_RUN_DFT_TCL): $(DC_SETUP_TCL) $(DC_REPORTS_TCL)
+  @echo "source $(DC_SETUP_TCL)" >> $@
+  @echo "read_file -format dc $(DATABASE_DIR)/$(TOPMODULE)_ultra_scan_mapped.ddc" >> $@
+  @echo "current_design $(TOPMODULE)" >> $@
+  @echo "link" >> $@
+  # Read deign & test protocol
+  @echo "read_test_protocol $(DATABASE_DIR)/$(TOPMODULE)_ultra_scan.spf" >> $@
+  # set global attribute for sacn paths in the current design
+  @echo "set_scan configuration -chain_count $(SCAN_CHAIN_COUNT)" >> $@
+  @echo "set_scan configuration -clock_mixing no_mix" >> $@
+  @echo "set_dft_signal -view spec -type ScanEable -active_state 1 -port $(DFT_TM_PORT)" >> $@
+  @echo "set_dft_signal -view spec -type ScanDataIn -port $(DFT_DI_PORT)" >> $@
+  @echo "set_dft_signal -view spec -type ScanDataOut -port $(DFT_DO_PORT)" >> $@
+  @echo "set_scan_path chain1 -scan_data_in $(DFT_DI_PORT) -scan_data_out $(DFT_DO_PORT)" >> $@
+  # Check scan-path consistency & Scan preview
+  @echo "preview_dft -show all" >> $@
+  # Scan Chain Synthesis /Scan Insertion
+  @echo "insert_dft" >> $@
+  # Scan Chain Identifiction
+  @echo "set_scan_state scan_existing" >> $@
+  # Post-DFT DRC : Check scan design rule after scan chain synthesis
+  @echo "dft_drc -coverage_estimate" >> $@
+  # Report scan information/Handoff Design
+  @echo "report_scan_path -view existing_dft -chain all" >> $@
+  @echo "report_scan_path -view existing_dft -cell all" >> $@
+  # Prepare TetraMax scrit/Handoff Design
+  @echo "change_name -hierarchy -rules verilog" >> $@
+  @echo "write -format ddc -heirarchy -output $(DATABASE_DIR)/$(TOPMODULE)_dft.ddc" >> $@
+  @echo "write -format verilog -heirarchy -output $(DATABASE_DIR)/$(TOPMODULE)_dft.v" >> $@
+  @echo "write_sdf $(RUN_DIR)/$(TOPMODULE)_dft.sdf" >> $@
+  @echo "write_sdc -nosplit $(RUN_DIR)/$(TOPMODULE)_dft.sdc" >> $@
+  # generate reports
+  @echo "set report_type dft" >> $@
+  @echo "source $(DC_REPORTS_TCL)" >> $@
+
+$(DC_CTL_TCL):
+  @echo "create_clock -period $(CLK_PERIOD) -name my_clock $(CLK_PORT)" >> $@
+  @echo "set_dont_touch_network my_clock" >> $@
+  # Time Budget
+  @echo "set_clock_uncertainity $(CLK_SKEW) [get_clocks my_clock]" >> $@
+  @echo "set_input_delay $(INPUT_DELAY) -max -clock my_clock [remove_from_collection [all_inputs] $(CLK_PORT)]" >> $@
+  @echo "set_output_delay $(OUTPUT_DELAY) -max -clock my_clock [all_outputs]" >> $@
+  # Area Constraint
+  @echo "set_max_area $(MAX_AREA)" >> $@
+  # Operating Environment
+  @echo "set_operating_conditions -max $(WC_OP_CONDS)" >> $@
+  @echo "set_wire_load_model -name $(WIRELOAD_MODEL)" >> $@
+  @echo "set_driving_cell -cell $(DRIVE_CELL) -pin $(DRIVE_PIN) [remove_from_collection [all_inputs] $(CLK_PORT)]" >> $@
+  @echo "set_load $(MAX_OUTPUT_LOAD) [all_outputs]" >> $@
+  
+syn: src $(DC_RUN_TCL)
+  @perl $(FILE_LIST_PL);
+  @dc_shell -x "source $(DC_RUN_TCL); $(EXIT_SWITCH)" | tee $(DC_RUN_LOG)
+  
+pre_dft: $(DC_PRE_DFT_TCL)
+  @dc_shell -x "source $(DC_PRE_DFT_TCL); $(EXIT_SWITCH)" | tee $(DC_PRE_DFT_LOG)
+
+run_dft: $(DC_RUN_DFT_TCL)
+  @dc_shell -x "source $(DC_RUN_DFT_TCL); $(EXIT_SWITCH)" | tee $(DC_RUN_DFT_LOG)
+
+dft: syn pre_dft run_dft
+
+clean:
+  @rm -rf $(RUN_DR)
+  @rm -rf csrc
+  @rm -rf simv*
+  @rm -rf verilog.dump*
+  @rm -rf vcdplus.vpd
+  @rm -rf DVEfiles
+  
+sim:
+  @vcs  -sverilog \
+        -f file_list \
+        -timesacle=1ps/1ps \
+        +define+no_unit_delay \
+        +nospecify \
+        +vcs+$(DUMP_OPTION) \
+        +lint=DSFIF \
+        +incdir+$(SOURCE_DIR)
+  @./simv
+  
+dve:
+  @dve -vpd $(DUMP_FILE) &
+
