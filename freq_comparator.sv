@@ -55,9 +55,39 @@ module freq_comparator #(
     .clk           (bclk),
     .reset         (breset),
     .enable        (count_enable_sync),
-    .count_enable  (count_enable),
     .timeout_count (btimeout_count),
     .timer_done    (timer_done)
   );
+  
+endmodule
+
+module freq_comparator_bdomain #(
+  parameter DATA_WIDTH = 32
+) (
+  input  logic clk,
+  input  logic reset,
+  input  logic enable,
+  output logic [DATA_WIDTH-1:0] timeout_count,
+  output logic timer_done
+);
+  
+  logic enable_d;
+  always_ff @(posedge clk) begin
+    enable_d <= enable;
+  end
+  always_ff @(posedge clk) begin
+    if (reset | (~enable_d & enable)) begin
+      timeout_count <= 'd0;
+    end else if(enable_d) begin
+      timeout_count <= timeout_count + 1'b1;
+    end
+  end
+  always_ff @(posedge clk) begin
+    if (reset | (~enable_d & enable)) begin
+      timer_done <= 1'b0;
+    end else if(enable_d & ~enable) begin
+      timer_done <= 1'b1;
+    end
+  end
   
 endmodule
