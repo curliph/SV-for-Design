@@ -13,7 +13,7 @@ module freq_comparator #(
 );
   
   logic [DATA_WIDTH-1:0] atimeout_count;
-  logic [DATA_WIDTH-1:0] btimeout_count,
+  logic [DATA_WIDTH-1:0] btimeout_count;
   logic count_enable,count_enable_sync;
   logic timer_done,timer_done_sync;
   
