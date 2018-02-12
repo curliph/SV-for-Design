@@ -1,4 +1,6 @@
 module interrupt_controller #(
+  parameter IRQ_SENSITIVITY = 1, // 0/1 level/edge
+  parameter IRQ_ACTIVESTATE = 1, // 1/0 posedge/negedge or level-high/low
   parameter INTR_WIDTH = 8,
   parameter ADDR_WIDTH = 5,
   parameter DATA_WIDTH = 32,
@@ -14,11 +16,63 @@ module interrupt_controller #(
   output logic                  cpu_access_complete,
   output logic                  cpu_irq
 );
-  
+  // interrupt controller registers
   logic [INTR_WIDTH-1:0] intr_ack;
   logic [INTR_WIDTH-1:0] intr_enable;
   logic [INTR_WIDTH-1:0] intr_status;
   logic [INTR_WIDTH-1:0] intr_pending;
+  // hw-irq generation
+  logic intr_ack_all;
+  logic intr_pending_all;
+  
+  always_ff @(posedge clk) begin
+    intr_pending_all <= |intr_pending;
+    intr_ack_all <= |intr_ack;
+  end
+  generate if (IRQ_SENSITIVITY) begin : irq_sensitivity
+    logic intr_lvl;intr_lvl_d;
+    if (IRQ_ACTIVESTATE) begin : irq_active_edge
+      always_ff @(posedge clk) begin
+        if (reset|intr_ack_all) begin
+          intr_lvl <= 1'b0;
+          intr_lvl_d <= 1'b0;
+        end else if (intr_pending_all) begin
+          intr_lvl <= 1'b1;
+          intr_lvl_d <= intr_lvl;
+        end
+      end
+      assign cpu_irq = intr_lvl & ~intr_lvl_d;
+    end else begin
+      always_ff @(posedge clk) begin
+        if (reset|intr_ack_all) begin
+          intr_lvl <= 1'b1;
+          intr_lvl_d <= 1'b1;
+        end else if (intr_pending_all) begin
+          intr_lvl <= 1'b0;
+          intr_lvl_d <= intr_lvl;
+        end
+      end
+      assign cpu_irq = ~(~intr_lvl & intr_lvl_d);
+    end
+  end else begin
+    if (IRQ_ACTIVESTATE) begin : irq_level_state
+      always_ff @(posedge clk) begin
+        if (reset|intr_ack_all) begin
+          cpu_irq <= 1'b0;
+        end else if (intr_pending_all) begin
+          cpu_irq <= 1'b1;
+        end
+      end
+    end else begin
+      always_ff @(posedge clk) begin
+        if (reset|intr_ack_all) begin
+          cpu_irq <= 1'b1;
+        end else if (intr_pending_all) begin
+          cpu_irq <= 1'b0;
+        end
+      end
+    end
+  end endgenerate
   // sw-interrupt enable-register
   always_ff @(posedge clk) begin
     if (reset) begin
