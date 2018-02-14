@@ -21,6 +21,7 @@ module interrupt_controller #(
   logic [INTR_WIDTH-1:0] intr_enable;
   logic [INTR_WIDTH-1:0] intr_status;
   logic [INTR_WIDTH-1:0] intr_pending;
+  logic [INTR_WIDTH-1:0] read_data;
   // hw-irq generation
   logic intr_ack_all;
   logic intr_pending_all;
@@ -113,16 +114,21 @@ module interrupt_controller #(
   // register read logic
   always_ff @(posedge clk) begin
     if (reset) begin
-      cpu_read_data <= 'd0;
+      read_data <= 'd0;
     end else if (cpu_read) begin
       case(cpu_address[3:2])
-        2'd0    : cpu_read_data <= intr_enable;
-        2'd1    : cpu_read_data <= intr_ack;
-        2'd2    : cpu_read_data <= intr_pending;
-        2'd3    : cpu_read_data <= intr_status;
-        default : cpu_read_data <= 'd0;
+        2'd0    : read_data <= intr_enable;
+        2'd1    : read_data <= intr_ack;
+        2'd2    : read_data <= intr_pending;
+        2'd3    : read_data <= intr_status;
+        default : read_data <= 'd0;
       endcase
     end
+  end
+  assign cpu_read_data = {{ADDR_WIDTH-INTR_WIDTH{1'b0}},read_data};
+  // register access complete
+  always_ff @(posedge clk) begin
+    cpu_access_complete <= cpu_read|cpu_write;
   end
   
 endmodule
