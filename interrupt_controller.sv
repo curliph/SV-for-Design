@@ -31,7 +31,7 @@ module interrupt_controller #(
     intr_ack_all <= |intr_ack;
   end
   generate if (IRQ_SENSITIVITY) begin : irq_sensitivity
-    logic intr_lvl;intr_lvl_d;
+    logic intr_lvl,intr_lvl_d;
     if (IRQ_ACTIVESTATE) begin : irq_active_edge
       always_ff @(posedge clk) begin
         if (reset|intr_ack_all) begin
