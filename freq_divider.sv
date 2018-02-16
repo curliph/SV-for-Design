@@ -13,7 +13,7 @@ module freq_divider #(
 );
 
 localparam COUNT_MAX = (INPUT_CLK_FREQ/OUTPUT_CLK_FREQ)/2;
-localparam COUNT_BIT = $clogb2(COUNT_MAX);
+localparam COUNT_BIT = $clog2(COUNT_MAX);
 
 logic clk_out_q = 1'b0;
 logic [COUNT_BIT-1:0] count = {COUNT_BIT{1'b0}};
