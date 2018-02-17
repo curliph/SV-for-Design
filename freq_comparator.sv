@@ -76,14 +76,18 @@ module freq_comparator_bdomain #(
     enable_d <= enable;
   end
   always_ff @(posedge clk) begin
-    if (reset | (~enable_d & enable)) begin
-      timeout_count <= 'd0;
+    if (reset) begin
+      timeout_count <= {DATA_WIDTH{1'b0}};
+    end else if(~enable_d & enable) begin
+      timeout_count <= {DATA_WIDTH{1'b0}};
     end else if(enable_d) begin
       timeout_count <= timeout_count + 1'b1;
     end
   end
   always_ff @(posedge clk) begin
-    if (reset | (~enable_d & enable)) begin
+    if (reset) begin
+      timer_done <= 1'b0;
+    end else if(~enable_d & enable) begin
       timer_done <= 1'b0;
     end else if(enable_d & ~enable) begin
       timer_done <= 1'b1;
@@ -111,8 +115,10 @@ module freq_comparator_adomain #(
   state_type state;
   
   always_ff @(posedge clk) begin
-    if (reset | (state == IDLE && enable)) begin
-      timeout_count <= 'd0;
+    if (reset) begin
+      timeout_count <= {DATA_WIDTH{1'b0}};
+    end else if(state == IDLE && enable) begin
+      timeout_count <= {DATA_WIDTH{1'b0}};
     end else if(count_enable) begin
       timeout_count <= timeout_count + 1'b1;
     end
