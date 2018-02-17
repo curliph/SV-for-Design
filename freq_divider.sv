@@ -26,14 +26,14 @@ always_ff @( posedge clk_in ) begin
     end else if ( count >= COUNT_MAX-1 ) begin
         count <= {COUNT_BIT{1'b0}};
     end else begin
-        count <= count + 1;
+        count <= count + 1'b1;
     end
 end
 
 always_ff @( posedge clk_in ) begin
     if ( reset ) begin
         clk_out_q <= 1'b0;
-    end else if ( count >= COUNT_MAX-1 ) begin
+    end else if ( count == COUNT_MAX-1 ) begin
         clk_out_q <= ~clk_out_q;
     end
 end
