@@ -5,11 +5,22 @@ module cpu_if_control_fsm (
   input  logic read, 
   input  logic write, 
   input  logic access_complete,
+  output logic access_type,
   output logic access_ready
 );
   
   enum int unsigned { IDLE=0, ACTIVE=1 } state = IDLE;
-
+  
+  always_ff @(posedge clk) begin
+    if (reset) begin
+      access_type <= 1'b0;
+    end else if (state == IDLE && write) begin
+      access_type <= 1'b1;
+    end else if (state == IDLE && read) begin
+      access_type <= 1'b0;
+    end
+  end
+  
   // state-machine defenition
   always_ff @(posedge clk) begin
     if (reset) begin
