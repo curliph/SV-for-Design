@@ -75,9 +75,9 @@ module cpu_if_pulse_sync #( parameter SYNC_STAGE = 3 ) (
   logic bqualifier,bqualifier_d;
   always_ff @(posedge aclk) begin
     if (areset) begin
-      qualifier <= 1'b0
+      aqualifier <= 1'b0
     end else begin
-      qualifier <= qualifier ^ adin;
+      aqualifier <= aqualifier ^ adin;
     end
   end
   cpu_if_bit_sync #( .SYNC_STAGE(SYNC_STAGE) ) 
