@@ -15,7 +15,6 @@ module freq_comparator #(
   logic [DATA_WIDTH-1:0] atimeout_count;
   logic [DATA_WIDTH-1:0] btimeout_count;
   logic count_enable,count_enable_sync;
-  logic timer_done,timer_done_sync;
   
   freq_comparator_adomain #(
     .DATA_WIDTH (DATA_WIDTH)
@@ -24,7 +23,6 @@ module freq_comparator #(
     .reset           (areset),
     .enable          (enable),
     .count_enable    (count_enable), // flop this signal so as to transfer to bdomin
-    .timer_done      (timer_done_sync),
     .timeout_value   (timeout_value),
     .timeout_compare (btimeout_count),
     .timeout_count   (atimeout_count),
@@ -40,23 +38,15 @@ module freq_comparator #(
     .din  (count_enable),
     .dout (count_enable_sync)
   );
-  // synchronize qualifier from aclk to bclk
-  // 3-clock-cycle for a double-flop to get qualifier valid in bclk-domain
-  data_sync #(
-    .SYNC_STAGE (SYNC_STAGE)
-  ) data_sync_done (
-    .clk  (aclk),
-    .din  (timer_done),
-    .dout (timer_done_sync)
-  );
+  
   freq_comparator_bdomain #(
+    .SYNC_STAGE (SYNC_STAGE),
     .DATA_WIDTH (DATA_WIDTH)
   ) freq_comparator_bdomain (
     .clk           (bclk),
     .reset         (breset),
     .enable        (count_enable_sync),
-    .timeout_count (btimeout_count),
-    .timer_done    (timer_done) // flop this signal so as to transfer to adomin
+    .timeout_count (btimeout_count)
   );
   
 endmodule
@@ -67,43 +57,27 @@ module freq_comparator_bdomain #(
   input  logic clk,
   input  logic reset,
   input  logic enable,
-  output logic [DATA_WIDTH-1:0] timeout_count,
-  output logic timer_done // flop this signal so as to transfer to adomin
+  output logic [DATA_WIDTH-1:0] timeout_count
 );
   
-  logic enable_d;
-  always_ff @(posedge clk) begin
-    enable_d <= enable;
-  end
   always_ff @(posedge clk) begin
     if (reset) begin
       timeout_count <= {DATA_WIDTH{1'b0}};
-    end else if(~enable_d & enable) begin
-      timeout_count <= {DATA_WIDTH{1'b0}};
-    end else if(enable_d) begin
+    end else if(enable) begin
       timeout_count <= timeout_count + 1'b1;
-    end
-  end
-  always_ff @(posedge clk) begin
-    if (reset) begin
-      timer_done <= 1'b0;
-    end else if(~enable_d & enable) begin
-      timer_done <= 1'b0;
-    end else if(enable_d & ~enable) begin
-      timer_done <= 1'b1;
     end
   end
   
 endmodule
 
 module freq_comparator_adomain #(
+  parameter SYNC_STAGE = 3,
   parameter DATA_WIDTH = 32
 ) (
   input  logic clk,
   input  logic reset,
   input  logic enable,
   output logic count_enable, // flop this signal so as to transfer to bdomin
-  input  logic timer_done,
   input  logic [DATA_WIDTH-1:0] timeout_value,
   input  logic [DATA_WIDTH-1:0] timeout_compare,
   output logic [DATA_WIDTH-1:0] timeout_count,
@@ -111,51 +85,42 @@ module freq_comparator_adomain #(
   output logic compare_done
 );
   
-  typedef enum logic [1:0] {IDLE,ACTIVE,DONE}state_type;
-  state_type state;
+  logic end_of_count,end_of_count_sync;
+  logic enable_d;
+  
+  // synchronize qualifier from aclk to bclk
+  // 3-clock-cycle for a double-flop to get qualifier valid in bclk-domain
+  data_sync #(
+    .SYNC_STAGE (3*SYNC_STAGE)
+  ) data_sync_enable (
+    .clk  (clk),
+    .din  (end_of_count),
+    .dout (end_of_count_sync)
+  );
   
   always_ff @(posedge clk) begin
     if (reset) begin
-      timeout_count <= {DATA_WIDTH{1'b0}};
-    end else if(state == IDLE && enable) begin
       timeout_count <= {DATA_WIDTH{1'b0}};
     end else if(count_enable) begin
       timeout_count <= timeout_count + 1'b1;
     end
   end
-  always_ff @(posedge clk) begin
-    if (state == DONE && timer_done) begin
-      compare_ge <= timeout_count >= timeout_compare;
-    end
-  end
+  
   always_ff @(posedge clk) begin
     if (reset) begin
-      state <= IDLE;
       count_enable <= 1'b0;
-      compare_done <= 1'b0;
-    end else begin
-      case(state)
-        IDLE : begin
-          if (enable) begin
-            state <= ACTIVE;
-            count_enable <= 1'b1;
-            compare_done <= 1'b0;
-          end
-        end
-        ACTIVE : begin
-          if (timeout_count >= timeout_value) begin
-            state <= DONE;
-            count_enable <= 1'b0;
-          end
-        end
-        DONE : begin
-          if (timer_done) begin
-            state <= IDLE;
-            compare_done <= 1'b1;
-          end
-        end
-        default : state <= IDLE;
-      endcase
+    end else if(~count_enable && ~enable_d && enable) begin
+      count_enable <= 1'b1;
+    end else if (end_of_count) begin
+      count_enable <= 1'b0;
+    end
+  end
+  
+  always_ff @(posedge clk) begin
+    enable_d <= enable;
+    end_of_count <= timeout_count > timeout_value;
+    if (end_of_count_sync) begin
+      compare_ge <= timeout_count >= timeout_compare;
     end
   end
   
